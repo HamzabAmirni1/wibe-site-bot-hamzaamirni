@@ -14,9 +14,9 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
     try {
         const stats = getStats();
 
-        const message = `📊 *إحصائيات Traffic Booster v4.0* 📊\n\n` +
-            `🌐 *الزيارات الناجحة للموقع:* ${stats.visits}\n` +
-            `💰 *الإعلانات المكتملة (Monetag):* ${stats.impressions}\n\n` +
+        const message = `📊 *إحصائيات Traffic Booster v6.0* 📊\n\n` +
+            `🌍 *الزيارات الناجحة للموقع:* ${stats.visits.toLocaleString()}\n` +
+            `💰 *الإعلانات المكتملة (Monetag):* ${stats.impressions.toLocaleString()}\n\n` +
             `🟢 البوت شغال ومستمر في جلب الزيارات شرعيا!`;
 
         await sock.sendMessage(chatId, { text: message }, { quoted: msg });
