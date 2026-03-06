@@ -80,15 +80,24 @@ const settings = {
 
 📋 **أوامر البوت المتاحة:**
 
-🎨 **AI & Media Tools:**
-- .nano - توليد صور بدقة 4K واقعية
-- .imgedit - تعديل الصور بالذكاء الاصطناعي
+🎨 **AI Image Tools:**
+- .gen / .imagine / .draw - توليد صور بالذكاء الاصطناعي
+- .deepimg - توليد صور DeepSeek
+- .imgedit / .nanobanana / .airbrush - تعديل وتحسين الصور
+- .hd / .upscale - رفع جودة الصور (RealESRGAN)
+- .removebg - إزالة الخلفية
+- .colorize - تلوين الصور
 - .grokvideo - توليد فيديوهات نصية عبر xAI
 - .aivideo / .veo - توليد فيديوهات مجانية
 - .img2video - تحويل صور لفيديوهات
-- .draw / .imagine - رسم صور متنوعة
-- .hd / .bg - تحسين الجودة وإزالة الخلفية
 - .gpt4o / .o1 - نماذج ذكاء اصطناعي ذكية
+
+🖼️ **Stable Diffusion (AUTOMATIC1111 Style):**
+- .sd - توليد صور بـ Stable Diffusion (موديلات: sdxl, realistic, anime, dreamshaper, portrait...)
+- .sdimg / .img2img - تحويل صورة لصورة بـ SD
+- .sdface / .gfpgan - إصلاح الوجوه بـ CodeFormer/GFPGAN
+- .sdprompt / .clip - تحسين الـ prompt + CLIP Interrogator
+- .sdinpaint / .inpaint - Inpainting: تغيير خلفية/وجه/ملابس/شعر
 
 📥 **Downloaders:**
 - .play [بحث] - تحميل أغاني يوتيوب (تفاعلي)

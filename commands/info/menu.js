@@ -15,12 +15,17 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
 📅 *Date:* ${new Date().toLocaleDateString('ar-MA')}
 
 ━━━━━━━━━━━━━━━━
-🎨 *AI & IMAGE*
-.gen | .imagine | .deepimg | .nano
+🎨 *AI IMAGE*
+.gen | .imagine | .deepimg | .draw
 .nanobanana | .airbrush | .removebg
 .imgedit | .hd | .upscale | .colorize
 .brat | .img2video | .sketch | .blur
-.draw | .imagine | .style | .hl
+.style | .hl | .wallpaper
+
+🖼️ *STABLE DIFFUSION (SD)*
+.sd | .sdimg | .sdface | .sdprompt
+.sdinpaint | .txt2img | .img2img
+.gfpgan | .inpaint | .clip
 
 🧠 *SMART AI*
 .deepseek | .gpt4o | .analyze | .vision
