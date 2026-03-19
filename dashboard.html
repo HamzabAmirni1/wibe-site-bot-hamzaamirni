@@ -24,8 +24,8 @@
                 <p class="text-slate-400">نظام إدارة البوتات المتكامل</p>
             </div>
             <div id="connection-indicator" class="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full">
-                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span class="text-green-500 text-sm font-semibold">Real-time Connected</span>
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span id="bot-count-total" class="text-green-500 text-xs font-bold uppercase tracking-tighter">0 Bots Connected</span>
             </div>
         </header>
 
@@ -173,6 +173,11 @@
 
             // Update Top Commands
             const topList = document.getElementById('top-commands-list');
+            const unusedList = document.getElementById('unused-commands-list');
+            
+            // Primary unique commands for tracking
+            const allPrimaryCmds = ['salat', 'dua', 'quran', 'ytdl', 'fb', 'ig', 'tiktok', 'gpt4', 'deepseek', 'gen', 'sd', 'upscale', 'sticker', 'weather', 'ping', 'news', 'menu'];
+            
             if (data.top_commands && data.top_commands.length > 0) {
                 topList.innerHTML = data.top_commands.slice(0, 5).map(cmd => `
                     <div class="flex items-center justify-between p-3 bg-slate-900/30 rounded-xl border border-slate-800/50">
@@ -180,12 +185,25 @@
                         <span class="bg-sky-500/10 text-sky-500 px-3 py-1 rounded-full text-xs font-bold">${cmd.count} استعمال</span>
                     </div>
                 `).join('');
+
+                const usedNames = data.top_commands.map(c => c.name);
+                const unused = allPrimaryCmds.filter(cmd => !usedNames.includes(cmd));
+                unusedList.innerHTML = unused.map(cmd => `
+                    <span class="px-3 py-1 bg-slate-800 rounded-full">.${cmd}</span>
+                `).join('');
+            } else {
+                unusedList.innerHTML = allPrimaryCmds.map(cmd => `
+                    <span class="px-3 py-1 bg-slate-800 rounded-full">.${cmd}</span>
+                `).join('');
             }
         }
 
         async function fetchWASessions() {
             const { data } = await supabase.from('whatsapp_auth').select('*');
             const list = document.getElementById('wa-sessions-list');
+            const totalIndicator = document.getElementById('bot-count-total');
+            
+            totalIndicator.innerText = `${data ? data.length : 0} Bots Connected`;
             list.innerHTML = data && data.length ? '' : '<p class="text-slate-500 text-sm">لا يوجد بوتات متصلة حالياً.</p>';
             data.forEach(wa => {
                 const statusColor = wa.status === 'open' || wa.status === 'connected' ? 'bg-green-500' : 'bg-red-500';
