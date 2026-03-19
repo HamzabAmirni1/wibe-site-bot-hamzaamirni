@@ -59,10 +59,13 @@ const { startPrayerScheduler } = require("./lib/prayerScheduler");
 const { startFbPostScheduler } = require("./lib/fbScheduler");
 const { startTelegramBot } = require("./lib/telegram");
 const { handleFacebookMessage } = require("./lib/facebook");
-const { startTrafficInterval } = require("./lib/trafficBooster");
+const { startTrafficInterval, getStats: getTrafficStats } = require("./lib/trafficBooster");
 const { ALL_COMMANDS, NLC_KEYWORDS } = require('./lib/commandMap');
+
 const bodyParser = require("body-parser");
 const { Boom } = require("@hapi/boom");
+const { db } = require("./lib/supabase");
+
 
 // Store processed message IDs to prevent duplicates
 const processedMessages = new Set();
@@ -83,6 +86,13 @@ setInterval(() => {
     console.log(chalk.red("⚠️ RAM too high (>450MB), restarting bot..."));
     process.exit(1);
   }
+  // Periodically push stats to Supabase
+  db.updateStats({
+    total_users: getTrafficStats().visits || 0,
+    messages_handled: (processedMessages.size + (getTrafficStats().impressions || 0)),
+    ram_usage: `${Math.round(used)}MB`,
+    top_commands: []
+  });
 }, 30000);
 
 // Filter console logs to suppress Baileys noise
@@ -149,6 +159,29 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => res.status(200).json({ status: "healthy", uptime: getUptime() }));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
+
+// 📊 Get Bot Stats from Supabase
+app.get("/stats", async (req, res) => {
+  const stats = await db.getStats();
+  res.json(stats || { message: "No stats available" });
+});
+
+// 🔗 Trigger New WhatsApp Connection
+app.post("/connect-wa", async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "Phone number required" });
+  
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  console.log(chalk.cyan(`🚀 Starting new WA connection for: ${cleanPhone}`));
+  
+  // Register in DB first
+  await db.updateWhatsAppAuth(cleanPhone, null);
+  
+  // Start the bot (in a separate non-blocking call if needed, but startBot handles async naturally)
+  startBot(`session_wa_${cleanPhone}`, cleanPhone);
+  
+  res.json({ status: "initiated", message: "Bot starting, wait for pairing code in Dashboard." });
+});
 
 // Facebook Webhook Authentication
 app.get("/webhook", (req, res) => {
@@ -244,6 +277,19 @@ async function startBot(folderName, phoneNumber) {
   const sessionDir = path.join(__dirname, "sessions", folderName);
   if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
+  let num = phoneNumber || process.env.PAIRING_NUMBER || config.pairingNumber;
+  if (num) num = num.replace(/[^0-9]/g, "");
+
+  // --- Load Session from Supabase ---
+  if (num && !fs.existsSync(path.join(sessionDir, "creds.json"))) {
+    const authRecord = await db.getWhatsAppAuth(num);
+    if (authRecord && authRecord.session_data) {
+      console.log(chalk.cyan(`📥 Loading session for ${num} from Supabase...`));
+      fs.writeFileSync(path.join(sessionDir, "creds.json"), JSON.stringify(authRecord.session_data, null, 2));
+    }
+  }
+
+  // legacy session ID support
   const sessionID = process.env[`SESSION_ID_${folderName.toUpperCase()}`] || process.env[folderName.toUpperCase()] || (folderName === "session_1" ? process.env.SESSION_ID : null);
 
   if (sessionID && !fs.existsSync(path.join(sessionDir, "creds.json"))) {
@@ -261,7 +307,7 @@ async function startBot(folderName, phoneNumber) {
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const { version } = await fetchLatestBaileysVersion();
 
-  const usePairingCode = !!(phoneNumber || process.env.PAIRING_NUMBER || config.pairingNumber);
+  const usePairingCode = !!num;
 
   const sock = makeWASocket({
     version,
@@ -281,38 +327,45 @@ async function startBot(folderName, phoneNumber) {
     markOnlineOnConnect: true,
   });
 
-  if (!sock.authState.creds.registered) {
-    let num = phoneNumber || process.env.PAIRING_NUMBER || config.pairingNumber;
-    if (num) {
-      num = num.replace(/[^0-9]/g, "");
-      setTimeout(async () => {
-        try {
-          let code = await sock.requestPairingCode(num);
-          code = code?.match(/.{1,4}/g)?.join("-") || code;
-          console.log(chalk.black.bgGreen(` [${folderName}] PAIRING CODE: `), chalk.white.bgRed.bold(` ${code} `));
-        } catch (e) {
-          console.log(chalk.red(`[${folderName}] Failed to get pairing code: ${e.message}`));
-        }
-      }, 5000 + (Math.random() * 5000)); // Stagger slightly
-    }
+  if (!sock.authState.creds.registered && num) {
+    setTimeout(async () => {
+      try {
+        let code = await sock.requestPairingCode(num);
+        code = code?.match(/.{1,4}/g)?.join("-") || code;
+        console.log(chalk.black.bgGreen(` [${folderName}] PAIRING CODE: `), chalk.white.bgRed.bold(` ${code} `));
+        
+        // 🚀 Real-time: Upload pairing code to Supabase
+        await db.updatePairingCode(num, code, 'connecting');
+      } catch (e) {
+        console.log(chalk.red(`[${folderName}] Failed to get pairing code: ${e.message}`));
+      }
+    }, 5000 + (Math.random() * 5000));
   }
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
+    if (num) await db.updateWAStatus(num, connection || 'disconnected');
+
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.code;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       if (statusCode === 401) {
         if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
-        setTimeout(() => startBot(folderName, phoneNumber), 2000); // Pass args back
+        if (num) await db.updateWhatsAppSession(num, null); // Clear corrupted session
+        setTimeout(() => startBot(folderName, phoneNumber), 2000);
       } else if (shouldReconnect) {
-        setTimeout(() => startBot(folderName, phoneNumber), 10000); // Pass args back
-      } else {
-        // Only exit process if main session fails repeatedly or config dictates
-        console.log(chalk.red(`[${folderName}] Connection closed permanently (logged out).`));
+        setTimeout(() => startBot(folderName, phoneNumber), 10000);
       }
     } else if (connection === "open") {
       console.log(chalk.green(`✅ [${folderName}] Connected!`));
+      if (num) await db.updatePairingCode(num, null, 'connected'); // Clear code on success
+      
+      // Sync credentials to Supabase for the first time
+      const credsPath = path.join(sessionDir, "creds.json");
+      if (num && fs.existsSync(credsPath)) {
+        const creds = fs.readJsonSync(credsPath);
+        await db.updateWhatsAppSession(num, creds);
+      }
       // Session backup - wrapped in try-catch to prevent crashes
       setTimeout(async () => {
         try {
@@ -345,7 +398,13 @@ async function startBot(folderName, phoneNumber) {
     }
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", async () => {
+    await saveCreds();
+    if (num) {
+      const creds = fs.readJsonSync(path.join(sessionDir, "creds.json"));
+      await db.updateWhatsAppSession(num, creds);
+    }
+  });
 
   sock.ev.on("call", async (callNode) => {
     const { enabled } = readAntiCallState();
@@ -548,15 +607,39 @@ async function startBot(folderName, phoneNumber) {
   });
 }
 
-// Start Main Bot
-startBot("session_1", config.pairingNumber);
+// --- Multi-Bot Startup via Supabase ---
+(async () => {
+  console.log(chalk.cyan("🔄 Initializing bots from Supabase..."));
+  
+  // 1. WhatsApp Bots
+  const waBots = await db.getAllWhatsAppAuth();
+  if (waBots && waBots.length > 0) {
+    waBots.forEach((bot, index) => {
+      setTimeout(() => startBot(`session_wa_${bot.phone_number}`, bot.phone_number), 5000 * index);
+    });
+  } else {
+    // Fallback if DB is empty
+    startBot("session_1", config.pairingNumber);
+  }
 
-// Start Telegram Bot
-startTelegramBot();
+  // 2. Telegram/Facebook Bots from configs
+  const botConfigs = await db.getBotConfigs();
+  if (botConfigs && botConfigs.length > 0) {
+    botConfigs.forEach(conf => {
+      if (conf.bot_type === 'telegram') {
+        console.log(chalk.green(`✅ Starting Telegram Bot: ${conf.bot_name || 'Bot'}`));
+        startTelegramBot(conf.bot_token);
+      }
+      // Add FB token logic here if needed
+    });
+  } else {
+    // Fallback to local config
+    startTelegramBot();
+  }
+})();
 
-// --- Global Error Handlers (Prevents crashes from Baileys internal errors) ---
-process.on('unhandledRejection', (reason, promise) => {
-  // Silently ignore known non-fatal Baileys errors
+// --- Global Error Handlers ---
+process.on('unhandledRejection', (reason) => {
   const msg = reason?.message || String(reason);
   if (msg.includes('Connection Closed') || msg.includes('Bad MAC') || msg.includes('Stream Errored')) return;
   console.error(chalk.red('[Process] Unhandled Rejection:'), msg);
@@ -564,25 +647,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (err) => {
   const msg = err.message || '';
-  // 'Connection Closed' (428) is NORMAL in Baileys — WhatsApp reconnects automatically.
-  // DO NOT exit the process for it — it caused "Instance stopped" every time analyze ran!
-  if (msg.includes('Connection Closed')) {
-    // Just log and let the auto-reconnect handle it
-    return;
-  }
+  if (msg.includes('Connection Closed')) return;
   console.error(chalk.red('[Process] Uncaught Exception:'), msg);
-  // Only exit for truly unrecoverable OS-level errors
-  if (msg.includes('EBADF') || msg.includes('ENOMEM')) {
-    console.log(chalk.yellow('🔄 Critical OS error detected, performing graceful restart...'));
-    process.exit(1);
-  }
+  if (msg.includes('EBADF') || msg.includes('ENOMEM')) process.exit(1);
 });
-
-// Start Extra Bots
-if (config.extraNumbers && config.extraNumbers.length > 0) {
-  config.extraNumbers.forEach((num, index) => {
-    setTimeout(() => {
-      startBot(`session_${index + 2}`, num);
-    }, 10000 * (index + 1));
-  });
-}
