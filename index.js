@@ -167,7 +167,28 @@ app.get("/ping", (req, res) => res.status(200).send("pong"));
 // 📊 Get Bot Stats from Supabase
 app.get("/stats", async (req, res) => {
   const stats = await db.getStats();
-  res.json(stats || { message: "No stats available" });
+  const traffic = getTrafficStats();
+  res.status(200).json({ 
+    ...stats, 
+    visits: traffic.visits || 0,
+    impressions: traffic.impressions || 0
+  });
+});
+
+// 🗑️ Delete WhatsApp Session
+app.post("/delete-wa", async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "Missing phone" });
+  const success = await db.deleteWhatsAppSession(phone);
+  res.status(success ? 200 : 500).json({ success });
+});
+
+// ⚙️ Update Bot Config (Manual Tokens)
+app.post("/update-config", async (req, res) => {
+  const { id, bot_token, bot_name } = req.body;
+  if (!id) return res.status(400).json({ error: "Missing ID" });
+  const success = await db.updateBotConfig(id, { bot_token, bot_name });
+  res.status(success ? 200 : 500).json({ success });
 });
 
 // 🔗 Trigger New WhatsApp Connection
@@ -562,7 +583,7 @@ async function startBot(folderName, phoneNumber) {
             if (quotedText) body = `[Mktob: "${quotedText}"]\n\nRd: ${body}`;
           }
 
-          const context = getContext(sender);
+          const context = await getContext(sender);
           const isRecentImg = context.lastImage && Date.now() - context.lastImage.timestamp < 5 * 60 * 1000;
           if (isRecentImg && body.length > 2 && !body.startsWith(".")) {
             try {
@@ -605,8 +626,8 @@ async function startBot(folderName, phoneNumber) {
         }
 
         if (reply) {
-          addToHistory(sender, "user", body);
-          addToHistory(sender, "assistant", reply);
+          await addToHistory(sender, "user", body);
+          await addToHistory(sender, "assistant", reply);
           await delayPromise;
           await sock.sendMessage(sender, { text: reply }, { quoted: msg });
         }
