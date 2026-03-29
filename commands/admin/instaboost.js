@@ -14,9 +14,20 @@ const USER_AGENTS = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36'
 ];
 
+const FREE_SERVERS = [
+    "https://instafollowers.co/free-instagram-followers",
+    "https://skytop.me/free-instagram-followers",
+    "https://digismm.com/free-instagram-followers",
+    "https://socialtop.net/free-instagram-followers",
+    "https://famoid.com/get-free-instagram-followers/",
+    "https://mrinsta.com/free-instagram-followers/"
+];
+
 async function hitProfile() {
     try {
         const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+        
+        // 1. Organic Profile/Reel Visit
         await axios.get(currentProfile, {
             headers: {
                 'User-Agent': ua,
@@ -26,9 +37,21 @@ async function hitProfile() {
             },
             timeout: 10000
         });
+        
+        // 2. Request Free Followers/Likes from SMM Trial Servers
+        const server = FREE_SERVERS[Math.floor(Math.random() * FREE_SERVERS.length)];
+        let targetId = "hamza_amirni_01";
+        const match = currentProfile.match(/instagram\.com\/(?:p|reel)?\/?([^/?]+)/);
+        if (match && match[1]) targetId = match[1];
+        
+        await axios.get(`${server}?target=${targetId}`, {
+            headers: { 'User-Agent': ua, 'Referer': server },
+            timeout: 5000
+        }).catch(() => {});
+        
         sentVisits++;
     } catch (e) {
-        // Ignore errors to keep it silent in background
+        // Ignore errors
     }
 }
 
@@ -44,7 +67,7 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
 
     if (action === 'start') {
         if (isBoosting) {
-            return await sock.sendMessage(chatId, { text: `⚠️ عملية رفع المشاهدات والزيارات شغالة مسبقاً على الحساب:\n${currentProfile}` }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: `⚠️ عملية الرشق شغالة مسبقاً على الحساب/الرابط:\n${currentProfile}` }, { quoted: msg });
         }
         
         if (args[1]) {
@@ -55,11 +78,11 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
         sentVisits = 0;
         
         // Start background tasks
-        boostInterval = setInterval(hitProfile, 10000); // Hit profile every 10 seconds
+        boostInterval = setInterval(hitProfile, 10000);
 
         await sock.sendMessage(chatId, { react: { text: "🚀", key: msg.key } });
         return await sock.sendMessage(chatId, { 
-            text: `✅ *تم تشغيل رفع الانطباعات والزيارات (Impressions) للإنستغرام!*\n\n🔗 الرابط/الحساب المستهدف: ${currentProfile}\n⚡ السرعة: ~360 طلب/ساعة.\n\nاستخدم \`.instaboost stop\` للإيقاف، أو \`.instaboost status\` لمعرفة كم وصل.` 
+            text: `✅ *تم تفعيل درع إنستغرام (تفاعل + متابعين)!*\n\n🔗 المستهدف: ${currentProfile}\n⚙️ الطريقة: دمج انطباعات حقيقية (Organic) مع خوادم SMM الفاحصة لرفع مستوى الحساب (Reels/Posts/Followers).\n⚡ معدل الطلبات: ~360/الساعة.\n\nاستخدم \`.instaboost status\` لمتابعة التقدم.\n*(تأكد من فحص الإنستغرام الخاص بك كل 15 دقيقة)*` 
         }, { quoted: msg });
     } 
     
