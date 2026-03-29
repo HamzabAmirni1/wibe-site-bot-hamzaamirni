@@ -50,8 +50,10 @@ async function hitProfile() {
         }).catch(() => {});
         
         sentVisits++;
+        console.log(chalk.magenta(`[Insta-Boost] 🚀 Sent Request #${sentVisits} to ${targetId}`));
     } catch (e) {
         // Ignore errors
+        console.log(chalk.red(`[Insta-Boost] ⚠️ Error on request #${sentVisits + 1}`));
     }
 }
 
