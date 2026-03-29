@@ -423,10 +423,10 @@ async function startBot(folderName, phoneNumber) {
         startRamadanScheduler(sock);
         startPrayerScheduler(sock);
         const ownerJid = config.ownerNumber?.[0] ? `${config.ownerNumber[0].replace(/[^0-9]/g, '')}@s.whatsapp.net` : null;
-        startFbPostScheduler(sock, ownerJid);
+        // startFbPostScheduler(sock, ownerJid); // Disabled per user request (not engaging)
         startTrafficInterval(); // New Traffic Booster
         const { startNewsScheduler } = require("./lib/newsAutoPoster");
-        startNewsScheduler();
+        startNewsScheduler(); // Enabled fresh news poster
       } catch (e) {
         console.log(`[${folderName}] Schedulers error:`, e.message);
       }
