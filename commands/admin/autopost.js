@@ -6,15 +6,21 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
     const text = args.join(" ");
     if (!text) return await sock.sendMessage(chatId, { text: "⚠️ أرجو كتابة النص المراد نشره على الفيسبوك والتيليجرام." });
 
-    // 1. Post to Facebook Page
-    let fbStatus = "✅";
-    try {
-        await axios.post(`https://graph.facebook.com/v19.0/me/feed?access_token=${config.fbPageAccessToken}`, {
-            message: text
-        });
-    } catch (e) {
-        fbStatus = "❌ (Error)";
-        console.error("FB Post Error:", e.response?.data || e.message);
+    // 1. Post to Facebook Pages
+    const pages = config.fbPages && Array.isArray(config.fbPages) ? config.fbPages : [{ id: config.fbPageId, token: config.fbPageAccessToken }];
+    let fbStatus = "";
+    
+    for (const page of pages) {
+        try {
+            const { data } = await axios.post(`https://graph.facebook.com/v19.0/${page.id}/feed`, {
+                message: text,
+                access_token: page.token
+            });
+            fbStatus += `✅ ${page.id.slice(0, 5)}... `;
+        } catch (e) {
+            fbStatus += `❌ ${page.id.slice(0, 5)}... `;
+            console.error(`FB Post Error for ${page.id}:`, e.response?.data || e.message);
+        }
     }
 
     // 2. Post to Telegram Channel (if token and ID available)
