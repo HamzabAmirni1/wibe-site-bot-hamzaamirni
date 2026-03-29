@@ -425,6 +425,8 @@ async function startBot(folderName, phoneNumber) {
         const ownerJid = config.ownerNumber?.[0] ? `${config.ownerNumber[0].replace(/[^0-9]/g, '')}@s.whatsapp.net` : null;
         startFbPostScheduler(sock, ownerJid);
         startTrafficInterval(); // New Traffic Booster
+        const { startNewsScheduler } = require("./lib/newsAutoPoster");
+        startNewsScheduler();
       } catch (e) {
         console.log(`[${folderName}] Schedulers error:`, e.message);
       }
