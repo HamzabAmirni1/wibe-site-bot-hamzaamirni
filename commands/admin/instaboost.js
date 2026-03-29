@@ -14,45 +14,45 @@ const USER_AGENTS = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36'
 ];
 
-const FREE_SERVERS = [
-    "https://instafollowers.co/free-instagram-followers",
-    "https://skytop.me/free-instagram-followers",
-    "https://digismm.com/free-instagram-followers",
-    "https://socialtop.net/free-instagram-followers",
-    "https://famoid.com/get-free-instagram-followers/",
-    "https://mrinsta.com/free-instagram-followers/"
+const CRAWLER_PROXIES = [
+    "https://translate.google.com/translate?hl=en&sl=ar&tl=en&u=",
+    "https://web.archive.org/save/",
+    "https://corsproxy.io/?",
+    "https://api.allorigins.win/raw?url="
 ];
 
 async function hitProfile() {
     try {
         const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+        const proxy = CRAWLER_PROXIES[Math.floor(Math.random() * CRAWLER_PROXIES.length)];
         
-        // 1. Organic Profile/Reel Visit
-        await axios.get(currentProfile, {
+        // Use major crawlers to fetch the Instagram profile, masking the Koyeb IP
+        // and tricking Instagram into seeing traffic from Google/Archive/etc.
+        const encodedUrl = encodeURIComponent(currentProfile);
+        const targetUrl = proxy.includes('allorigins') ? `${proxy}${encodedUrl}` : `${proxy}${currentProfile}`;
+        
+        await axios.get(targetUrl, {
             headers: {
                 'User-Agent': ua,
                 'Referer': 'https://www.google.com/',
                 'Accept-Language': 'ar-MA,ar;q=0.9,en;q=0.8',
-                'Sec-Fetch-Dest': 'document'
             },
             timeout: 10000
-        });
+        }).catch(() => {});
         
-        // 2. Request Free Followers/Likes from SMM Trial Servers
-        const server = FREE_SERVERS[Math.floor(Math.random() * FREE_SERVERS.length)];
-        let targetId = "hamza_amirni_01";
-        const match = currentProfile.match(/instagram\.com\/(?:p|reel)?\/?([^/?]+)/);
-        if (match && match[1]) targetId = match[1];
-        
-        await axios.get(`${server}?target=${targetId}`, {
-            headers: { 'User-Agent': ua, 'Referer': server },
+        // Also hit directly as fallback
+        await axios.get(currentProfile, {
+            headers: { 'User-Agent': ua },
             timeout: 5000
         }).catch(() => {});
         
         sentVisits++;
-        console.log(chalk.magenta(`[Insta-Boost] 🚀 Sent Request #${sentVisits} to ${targetId}`));
+        let targetId = "Instagram";
+        const match = currentProfile.match(/instagram\.com\/(?:p|reel)?\/?([^/?]+)/);
+        if (match && match[1]) targetId = match[1];
+        
+        console.log(chalk.magenta(`[Insta-Boost] 🚀 Sent Bypass Request #${sentVisits} to ${targetId} via ${new URL(proxy).hostname}`));
     } catch (e) {
-        // Ignore errors
         console.log(chalk.red(`[Insta-Boost] ⚠️ Error on request #${sentVisits + 1}`));
     }
 }
