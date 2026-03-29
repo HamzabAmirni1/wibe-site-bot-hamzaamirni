@@ -5,21 +5,27 @@ module.exports = async (sock, chatId, msg, args, helpers, userLang) => {
     try {
         await sock.sendMessage(chatId, { text: "⏳ جاري جلب آخر الأخبار العاجلة..." }, { quoted: msg });
         
-        // Fetch from Al Jazeera Arabic (RSS/Scrape)
-        const res = await axios.get("https://www.aljazeera.net/breaking/");
-        const $ = cheerio.load(res.data);
+        // Fetch from Al Jazeera Arabic RSS
+        const res = await axios.get("https://www.aljazeera.net/rss", {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 10000
+        });
+        const $ = cheerio.load(res.data, { xmlMode: true });
         const news = [];
 
-        $('.breaking-news-list-item').each((i, el) => {
-            if (i < 5) {
-                const title = $(el).find('h3').text().trim();
-                const time = $(el).find('.breaking-news-time').text().trim();
-                news.push(`🔹 *${time}* - ${title}`);
+        $('item').each((i, el) => {
+            if (i < 6) {
+                const title = $(el).find('title').text().trim();
+                let dateStr = $(el).find('pubDate').text().trim();
+                // Format: "Sun, 29 Mar 2026 15:58:55 +0300" -> "15:58"
+                const matchTime = dateStr.match(/\d{2}:\d{2}/);
+                const timeStr = matchTime ? matchTime[0] : "";
+                news.push(`🔹 ${timeStr ? `*[${timeStr}]* ` : ""}${title}`);
             }
         });
 
         if (news.length === 0) {
-            // Fallback to simple news API or another source
+            // Fallback to simple news API
             const { data } = await axios.get("https://newsdata.io/api/1/news?apikey=pub_3675276e5d590408542da671f65bb1fb287&q=news&language=ar");
             data.results.slice(0, 5).forEach(n => news.push(`🔹 ${n.title}`));
         }
