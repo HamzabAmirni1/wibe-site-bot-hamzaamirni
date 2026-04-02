@@ -570,7 +570,7 @@ async function startBot(folderName, phoneNumber) {
           let response = "";
           
           if (msg.message.imageMessage) {
-              response = await ai.getGeminiResponse(sender, body || "Explain this image", buffer, "image/jpeg");
+              response = await ai.analyzeImage(buffer, "image/jpeg", body || "اشرح لي هذه الصورة بالتفصيل.");
           } else if (msg.message.audioMessage) {
               response = await ai.transcribeAudio(buffer, "audio/ogg");
           } else if (msg.message.documentMessage) {
