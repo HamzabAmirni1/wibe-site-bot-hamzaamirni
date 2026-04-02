@@ -153,6 +153,7 @@ app.get("/", (req, res) => {
     bot: config.botName, status: "running", uptime: getUptime(),
     timestamp: new Date().toISOString(), memory: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
     version: config.version, publicUrl: config.publicUrl,
+    platform: process.platform, arch: process.arch, node: process.version
   };
   res.json(status);
 });
@@ -646,8 +647,17 @@ async function startBot(folderName, phoneNumber) {
         if (reply) {
           await addToHistory(sender, "user", body);
           await addToHistory(sender, "assistant", reply);
-          await delayPromise;
+          
+          // --- HUMAN-LIKE INTERACTION (Inspired by WPPConnect) ---
+          const isAudio = reply.length < 50 && (reply.includes("تفضل") || reply.includes("أوديو"));
+          await sock.sendPresenceUpdate(isAudio ? "recording" : "composing", sender);
+          
+          const words = reply.split(" ").length;
+          const typingDelay = Math.min(Math.max(words * 200, 1500), 5000); // 1.5s to 5s delay
+          await new Promise(res => setTimeout(res, typingDelay));
+
           await sock.sendMessage(sender, { text: reply }, { quoted: msg });
+          await sock.sendPresenceUpdate("paused", sender);
         }
       }
     } catch (e) { }
